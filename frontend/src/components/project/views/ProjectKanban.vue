@@ -301,7 +301,7 @@ import {
 	useUpdateBucketMutation,
 	useLoadBucketPageMutation,
 } from '@/client/queries/kanbanMutations'
-import {computed, nextTick, ref, watch, toRef} from 'vue'
+import {computed, nextTick, onBeforeUnmount, ref, watch, toRef} from 'vue'
 import {useQuery, useQueryClient} from '@tanstack/vue-query'
 import {useRouter} from 'vue-router'
 import {useRouteQuery} from '@vueuse/router'
@@ -564,6 +564,7 @@ function updateTasks(bucketId: number, tasks: BucketResponse['tasks']) {
 async function updateTaskPosition(e: SortableEvent & {originalEvent?: MouseEvent}) {
 	const project = projectId.value
 	const view = props.viewId
+	stopDragScroll()
 	drag.value = false
 	try {
 		const {moved} = await handleTaskDropToProject(e, task => {
@@ -793,6 +794,44 @@ function dragstart(bucket: BucketResponse) {
 	sourceBucket.value = bucket.id
 }
 
+// Sortable only scrolls the board when the pointer is within a few pixels of its edge, which is too
+// narrow to reach buckets off screen. While a task is dragged, keep scrolling the board ourselves
+// as long as the pointer stays near either side.
+const DRAG_SCROLL_EDGE = 80
+const DRAG_SCROLL_STEP = 12
+let dragScrollFrame: number | undefined
+let dragScrollPointer: {board: HTMLElement, clientX: number} | undefined
+
+function trackDragScrollPointer(e: DragEvent) {
+	const board = (e.target as HTMLElement | null)?.closest<HTMLElement>('.kanban')
+	dragScrollPointer = board ? {board, clientX: e.clientX} : undefined
+}
+
+function scrollBoardWhileDragging() {
+	if (dragScrollPointer) {
+		const {board, clientX} = dragScrollPointer
+		const {left, right} = board.getBoundingClientRect()
+		if (clientX > right - DRAG_SCROLL_EDGE) board.scrollLeft += DRAG_SCROLL_STEP
+		if (clientX < left + DRAG_SCROLL_EDGE) board.scrollLeft -= DRAG_SCROLL_STEP
+	}
+	dragScrollFrame = requestAnimationFrame(scrollBoardWhileDragging)
+}
+
+function startDragScroll() {
+	stopDragScroll()
+	document.addEventListener('dragover', trackDragScrollPointer, true)
+	dragScrollFrame = requestAnimationFrame(scrollBoardWhileDragging)
+}
+
+function stopDragScroll() {
+	document.removeEventListener('dragover', trackDragScrollPointer, true)
+	if (dragScrollFrame !== undefined) cancelAnimationFrame(dragScrollFrame)
+	dragScrollFrame = undefined
+	dragScrollPointer = undefined
+}
+
+onBeforeUnmount(stopDragScroll)
+
 function handleTaskDragStart(e: SortableEvent) {
 	const taskId = Number(e.item.dataset.taskId)
 	const bucketIndex = Number(e.from.dataset.bucketIndex)
@@ -803,6 +842,7 @@ function handleTaskDragStart(e: SortableEvent) {
 		board.startDrag()
 		setDraggedTask(task)
 	}
+	startDragScroll()
 	dragstart(bucket)
 }
 
