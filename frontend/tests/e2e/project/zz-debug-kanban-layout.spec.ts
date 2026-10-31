@@ -21,7 +21,10 @@ async function drag(page: import('@playwright/test').Page, dx: number, moving: b
 	await page.goto('/projects/1/4')
 	await page.waitForLoadState('networkidle')
 	await page.locator('.kanban .bucket .tasks .task').filter({hasText: tasks[0].title}).first().waitFor()
+	return dragFrom(page, tasks, dx, moving)
+}
 
+async function dragFrom(page: import('@playwright/test').Page, tasks: {title: string}[], dx: number, moving: boolean) {
 	const board = page.locator('.kanban')
 	const boardBox = (await board.boundingBox())!
 	const taskBox = (await page.locator('.kanban .bucket .tasks .task').filter({hasText: tasks[0].title}).first().boundingBox())!
@@ -63,4 +66,30 @@ test('debug B: stationary 5px from edge', async ({authenticatedPage: page}) => {
 test('debug C: moving 60px from edge', async ({authenticatedPage: page}) => {
 	const r = await drag(page, 60, true)
 	throw new Error('KANBAN_DEBUG ' + JSON.stringify(r))
+})
+
+test('debug D: sortable options and 60px with sensitivity raised at runtime', async ({authenticatedPage: page}) => {
+	const tasks = await setup()
+	await page.goto('/projects/1/4')
+	await page.waitForLoadState('networkidle')
+	await page.locator('.kanban .bucket .tasks .task').filter({hasText: tasks[0].title}).first().waitFor()
+	const options = await page.evaluate(() => {
+		const out: Record<string, unknown>[] = []
+		document.querySelectorAll<HTMLElement>('.kanban .tasks, .kanban-bucket-container').forEach(el => {
+			const key = Object.keys(el).find(k => k.startsWith('Sortable'))
+			const inst = key ? (el as unknown as Record<string, {options: Record<string, unknown>}>)[key] : undefined
+			out.push({cls: el.className, hasKey: !!key, scrollSensitivity: inst?.options.scrollSensitivity, scrollSpeed: inst?.options.scrollSpeed, scroll: inst?.options.scroll})
+		})
+		return out.slice(0, 3)
+	})
+	const r = await page.evaluate(() => {
+		document.querySelectorAll<HTMLElement>('.kanban .tasks, .kanban-bucket-container').forEach(el => {
+			const key = Object.keys(el).find(k => k.startsWith('Sortable'))
+			const inst = key ? (el as unknown as Record<string, {options: Record<string, unknown>}>)[key] : undefined
+			if (inst) inst.options.scrollSensitivity = 100
+		})
+		return true
+	})
+	const drained = await dragFrom(page, tasks, 60, false)
+	throw new Error('KANBAN_DEBUG ' + JSON.stringify({options, r, drained}))
 })
