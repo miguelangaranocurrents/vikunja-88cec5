@@ -927,7 +927,6 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 		position: relative;
 
 		margin: 0 $bucket-right-margin 0 0;
-		block-size: 100%;
 		max-block-size: calc(100% - 1rem); // 1rem spacing to the bottom
 		min-block-size: 20px;
 		inline-size: $bucket-width;
