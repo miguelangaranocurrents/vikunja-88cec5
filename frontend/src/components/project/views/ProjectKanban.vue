@@ -354,8 +354,6 @@ const DRAG_OPTIONS = {
 	dragClass: 'task-dragging',
 	delayOnTouchOnly: true,
 	delay: 1000,
-	// Sortable's default of 30px only auto-scrolls the board when the pointer is nearly at its edge.
-	scrollSensitivity: 100,
 } as const
 
 const MIN_SCROLL_HEIGHT_PERCENT = 0.25
@@ -929,6 +927,7 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 		position: relative;
 
 		margin: 0 $bucket-right-margin 0 0;
+		block-size: 100%;
 		max-block-size: calc(100% - 1rem); // 1rem spacing to the bottom
 		min-block-size: 20px;
 		inline-size: $bucket-width;
